@@ -10,21 +10,30 @@ import {
   useSensors,
   DragEndEvent,
   useDroppable,
-  DragOverlay,
 } from "@dnd-kit/core";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import Navigation from "@/components/section/Navigation";
 import LeagueItem from "@/components/section/LeagueItem";
-// League data
-const initialLeagues = [
+
+// Define the shape of a league
+interface League {
+  id: string;
+  logo: string;
+  name: string;
+  espnId: string;
+  year: string;
+  status: string;
+}
+
+// Initial list of leagues
+const initialLeagues: League[] = [
   {
     id: "1",
     logo: "/league-1.png",
@@ -67,9 +76,13 @@ const initialLeagues = [
   },
 ];
 
-// Create a DroppableArchive component
-// Create a component for the droppable leagues container
-function DroppableLeagues({ children }) {
+// Props for droppable containers
+interface DroppableProps {
+  children: React.ReactNode;
+}
+
+// Droppable area for active leagues
+function DroppableLeagues({ children }: DroppableProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: "leagues-container",
   });
@@ -84,8 +97,16 @@ function DroppableLeagues({ children }) {
   );
 }
 
-// Create a component for the droppable archive
-function DroppableArchive({ children, archivedLeagues }) {
+// Props for archived section
+interface DroppableArchiveProps extends DroppableProps {
+  archivedLeagues: League[];
+}
+
+// Droppable area for archived leagues
+function DroppableArchive({
+  children,
+  archivedLeagues,
+}: DroppableArchiveProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: "archived-section",
   });
@@ -103,10 +124,11 @@ function DroppableArchive({ children, archivedLeagues }) {
 }
 
 export default function Home() {
-  const [leagues, setLeagues] = useState(initialLeagues);
-  const [archivedVisible, setArchivedVisible] = useState(true); // Set to true by default for easier testing
-  const [archivedLeagues, setArchivedLeagues] = useState([]);
+  const [leagues, setLeagues] = useState<League[]>(initialLeagues);
+  const [archivedVisible, setArchivedVisible] = useState<boolean>(true);
+  const [archivedLeagues, setArchivedLeagues] = useState<League[]>([]);
 
+  // Configure drag-and-drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -118,84 +140,76 @@ export default function Home() {
     })
   );
 
+  // Handle logic when a drag ends
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
 
-    // Check if dragging from active leagues to archived section
+    // Move from active to archive
     if (
       over?.id === "archived-section" &&
       leagues.some((league) => league.id === active.id)
     ) {
-      // Find the league to archive
-      const leagueToArchive = leagues.find((item) => item.id === active.id);
-
+      const leagueToArchive = leagues.find((l) => l.id === active.id);
       if (leagueToArchive) {
-        // First remove from active leagues to prevent duplicates
-        setLeagues((items) => items.filter((item) => item.id !== active.id));
-
-        // Then add to archived leagues with updated status
+        setLeagues((items) => items.filter((l) => l.id !== active.id));
         setArchivedLeagues((prev) => [
           ...prev,
           { ...leagueToArchive, status: "Archived" },
         ]);
       }
     }
-    // Normal reordering within active leagues
+    // Reorder within active leagues
     else if (
       active.id !== over?.id &&
       over?.id &&
-      leagues.some((league) => league.id === active.id) &&
-      leagues.some((league) => league.id === over?.id)
+      leagues.some((l) => l.id === active.id) &&
+      leagues.some((l) => l.id === over.id)
     ) {
       setLeagues((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-
+        const oldIndex = items.findIndex((l) => l.id === active.id);
+        const newIndex = items.findIndex((l) => l.id === over.id);
         if (oldIndex !== -1 && newIndex !== -1) {
-          const newItems = [...items];
-          const [removed] = newItems.splice(oldIndex, 1);
-          newItems.splice(newIndex, 0, removed);
-          return newItems;
+          const updated = [...items];
+          const [moved] = updated.splice(oldIndex, 1);
+          updated.splice(newIndex, 0, moved);
+          return updated;
         }
         return items;
       });
     }
-    // Normal reordering within archived leagues
+    // Reorder within archived leagues
     else if (
       active.id !== over?.id &&
       over?.id &&
-      archivedLeagues.some((league) => league.id === active.id) &&
-      archivedLeagues.some((league) => league.id === over.id)
+      archivedLeagues.some((l) => l.id === active.id) &&
+      archivedLeagues.some((l) => l.id === over.id)
     ) {
       setArchivedLeagues((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-
+        const oldIndex = items.findIndex((l) => l.id === active.id);
+        const newIndex = items.findIndex((l) => l.id === over.id);
         if (oldIndex !== -1 && newIndex !== -1) {
-          const newItems = [...items];
-          const [removed] = newItems.splice(oldIndex, 1);
-          newItems.splice(newIndex, 0, removed);
-          return newItems;
+          const updated = [...items];
+          const [moved] = updated.splice(oldIndex, 1);
+          updated.splice(newIndex, 0, moved);
+          return updated;
         }
         return items;
       });
     }
   }
 
-  // Function to handle unarchiving a league
-  function handleUnarchive(league) {
-    // First remove from archived leagues
+  // Unarchive a league
+  function handleUnarchive(league: League) {
     setArchivedLeagues((items) =>
       items.filter((item) => item.id !== league.id)
     );
-
-    // Then add back to active leagues with updated status
     setLeagues((items) => [...items, { ...league, status: "Post-Draft" }]);
   }
 
   return (
     <div className="min-h-screen bg-zinc-900 text-white">
       <div className="max-w-2xl mx-auto p-6">
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Image src="/logo.png" alt="Logo" width={16} height={16} />
@@ -206,17 +220,17 @@ export default function Home() {
             size="sm"
             className="text-xs text-white bg-zinc-800"
           >
-            <span>+ Create League</span>
+            + Create League
           </Button>
         </div>
 
-        {/* Main leagues list */}
+        {/* Drag-and-drop context for leagues */}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
-          {/* Create a droppable area for the main league section */}
+          {/* Active leagues section */}
           <DroppableLeagues>
             <SortableContext
               items={leagues.map((l) => l.id)}
@@ -228,7 +242,7 @@ export default function Home() {
             </SortableContext>
           </DroppableLeagues>
 
-          {/* Archived section */}
+          {/* Archived section toggle */}
           <div className="mt-8">
             <div
               className="flex items-center text-zinc-400 cursor-pointer"
@@ -240,6 +254,7 @@ export default function Home() {
               <span>Archived</span>
             </div>
 
+            {/* Archived leagues list */}
             {archivedVisible && (
               <DroppableArchive archivedLeagues={archivedLeagues}>
                 {archivedLeagues.length > 0 ? (
@@ -248,11 +263,7 @@ export default function Home() {
                     strategy={verticalListSortingStrategy}
                   >
                     {archivedLeagues.map((league) => (
-                      <LeagueItem
-                        key={league.id}
-                        league={league}
-                        onUnarchive={handleUnarchive}
-                      />
+                      <LeagueItem key={league.id} league={league} />
                     ))}
                   </SortableContext>
                 ) : (
